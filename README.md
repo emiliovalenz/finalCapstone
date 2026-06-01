@@ -138,11 +138,11 @@ El módulo de autenticación existe en el código pero como se menciono, actualm
 
 Muestra los contenedores (aplicaciones, bases de datos, servicios) y sus interacciones.
 
-![Diagrama C2](Img_Codigo/C2Contenedores-dark.png)
+![Diagrama C2](Diagramas/C2Contenedores-dark.png)
 
-## Diagrama de Componentes (C4 Level 3) — opcional
+## Diagrama de Componentes (C4 Level 3)
 
-![Diagrama C3 - API REST](Img_Codigo/C3Componentes_API-dark.png)
+![Diagrama C3 - API REST](Diagramas/C3Componentes_API-dark.png)
 
 ## Resumen de contenedores / componentes principales
 
@@ -188,7 +188,7 @@ Documentación sobre los datos del sistema: modelo, almacenamiento, propietarios
 
 Diagrama de Entidad-Relación para la Base de Datos de Catalogo de Piezas de Collins
 
-![Diagrama Entidad-Relacion Collins](Img_Codigo/Diagrama%20Entidad-Relacion%20Collins.png)
+![Diagrama Entidad-Relacion Collins](Diagramas/Diagrama%20Entidad-Relacion%20Collins.png)
 
 El diagrama muestra en general el comportamiento de las entidades de datos, siendo la sección principal lo de las partes con todos sus tipos de datos requeridos para cada pieza. Adicionalmente se encuentran tablas de relación, que permiten relacionar a las piezas con multiples tipos de materiales y tamaños de las mismas. Fuera de estas puede sentirse extraña la sección de usuarios al estar separada de lo demás, pero esta parte es principalmente una conveniencia de pruebas para nosotros, ya que después de que entregmos el proyecto el propio equipo de Collins serán los responsables de integrar su sistema de usuarios a la página.
 
@@ -212,7 +212,7 @@ Descripción del hardware (físico o virtual) y la red sobre la que correrá el 
 
 ## Diagrama de infraestructura / red
 
-![Diagrama Red Collins](Img_Codigo/Diagrama%20Red%20Collins.png)
+![Diagrama Red Collins](Diagramas/Diagrama%20Red%20Collins.png)
 
 ## Descripción de componentes de infraestructura
 
