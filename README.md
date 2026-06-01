@@ -228,22 +228,109 @@ Describe el hardware (físico o virtual) y la red sobre la que correrá el softw
 
 # 10. Despliegue
 
-Documenta el mapeo entre los contenedores de software y la infraestructura. ¿Dónde corre cada pieza del sistema?
+Documenta el mapeo entre los contenedores de software y la infraestructura. ¿Dónde corre cada pieza del sistema? El sistema corre en un servidor web local que se tiene en la planta de Mexicali, donde se ejectuan simultaneamente el frontend, el backend y la base de datos, debido a que es un proyecto interno y la carga que tiene planeada recibir es baja/media.
+
+![imagen-infraestructura-contenedores](infraestructura-contenedores.png)
+
+
 
 ## Estrategia de despliegue
 
 Describe cómo y dónde se despliega el sistema (ej. contenedores Docker en AWS ECS, despliegue manual en VPS, etc.).
+El sistema se despliega en una máquina Windows ubicada físicamente dentro de la red de la planta. El acceso remoto para administración es vía **RDP**; para ejecución de comandos se usa PowerShell desde esa misma sesión.
+
+El proceso es manual y controlado por el administrador del servidor.
+
+El flujo estándar para cada actualización es el siguiente:
+
+1. Los cambios se consolidan en la rama `main` del repositorio Git
+2. El administrador notifica a los usuarios que habrá una ventana de mantenimiento 
+3. Se toma un backup de la base de datos antes de cualquier intervención
+4. El administrador accede al servidor vía RDP y ejecuta el pase a producción desde una terminal PowerShell
+5. Se verifica que el sistema responda correctamente antes de cerrar la ventana de mantenimiento
+
+```powershell
+# ── 1. Obtener últimos cambios ──────────────────────────────────────────
+cd C:\inetpub\eCatalogApp
+git pull origin main
+
+# ── 2. Build del frontend ───────────────────────────────────────────────
+cd eCatalogCollinsFront
+pnpm install
+pnpm run build
+# El resultado queda en eCatalogCollinsFront\dist\ — IIS sirve esta carpeta
+
+# ── 3. Actualizar dependencias del backend ──────────────────────────────
+cd ..\eCatalogCollinsBack
+pip install -r requirements.txt
+
+# ── 4. Correr migraciones (si las hay en este pase) ─────────────────────
+# Solo ejecutar si el pase incluye cambios de esquema
+alembic upgrade head
+
+# ── 5. Reiniciar el servicio FastAPI ────────────────────────────────────
+uvicorn app.main:app --reload
+
+# ── 6. Verificar que el proceso levantó correctamente ───────────────────
+Start-Sleep -Seconds 5
+Invoke-WebRequest -Uri http://localhost:8000/health -UseBasicParsing
+```
+
+IIS no necesita reiniciarse salvo que cambien archivos de configuración (`.web.config`). Al actualizar la carpeta `dist\` del frontend, IIS sirve los nuevos archivos de forma inmediata.
 
 ## Mapeo software → infraestructura
 
-| Contenedor / Componente | Se despliega en | Configuración (activo/pasivo, réplicas, etc.) |
+| Contenedor / Componente | Se despliega en | Configuración |
 |---|---|---|
-| ... | ... | ... |
-| ... | ... | ... |
-
+| Frontend (React + TanStack Start) | `C:\inetput\eCatalogCollinsFront` | Build estático servido por Nginx for IIS; se genera con `npm run build` antes del pase |
+| Backend (FastAPI) | `C:\inetpub\eCatalogCollinsBack` | Proceso Python registrado como servicio Windows vía NSSM; Uvicorn escuchando en `localhost:8000` |
+| Base de datos | SQL Server, misma máquina | Instancia única, sin réplica |
+| Archivos estáticos / uploads | `C:\uploads` o carpeta equivalente | Excluida del repositorio Git, respaldo manual |
+| Servidor web / reverse proxy | IIS o Nginx for Windows en puerto 80/443 | Redirige `/api/*` al proceso FastAPI en `:8000` y sirve el build del frontend para todo lo demás |
 ## Estrategia de rollback
 
 ¿Cómo se revierte un despliegue fallido?
+
+Si el despliegue produce un error que no se puede resolver en menos de 15 minutos, se ejecuta rollback inmediato al último estado estable conocido.
+
+**Criterio de activación:** si tras el pase se reportan errores funcionales por usuarios de piso o supervisores en los primeros 30 minutos, se revierte sin necesidad de diagnóstico extenso. Es preferible revertir y analizar el problema en staging que mantener el sistema inestable durante turno productivo.
+
+El procedimiento completo de rollback es el siguiente:
+
+```powershell
+# ── 1. Revertir el código al commit anterior ────────────────────────────
+cd C:\inetpub\eCatalogCollinsApp
+git log --oneline -5                        # identificar el hash estable
+git checkout 
+
+# ── 2. Reconstruir el frontend ──────────────────────────────────────────
+cd eCatalogCollinsFrontend
+pnpm install
+pnpm run build
+
+# ── 3. Restaurar dependencias del backend ───────────────────────────────
+cd ..\eCatallogCollinsBack
+pip install -r requirements.txt
+
+# ── 4. Revertir migraciones si el pase las incluyó ──────────────────────
+# Omitir este paso si el pase no tocó la base de datos
+alembic downgrade -1
+
+# ── 5. Reiniciar el servicio y verificar ────────────────────────────────
+uvicorn app.main:app --reload
+Start-Sleep -Seconds 5
+Invoke-WebRequest -Uri http://localhost:8000/health -UseBasicParsing
+```
+
+> **Importante:** si `alembic downgrade` falla o el esquema quedó en un estado inconsistente, restaurar el backup tomado al inicio del pase antes de continuar:
+>
+> ```powershell
+> # SQL Server
+> sqlcmd -S localhost -Q "RESTORE DATABASE nombre_db FROM DISK='C:\backups\pre-deploy-YYYYMMDD_HHMM.bak' WITH REPLACE"
+>
+> # MySQL
+> mysql -u usuario -p nombre_db < C:\backups\pre-deploy-YYYYMMDD_HHMM.sql
+> ```
 
 ---
 
@@ -253,11 +340,11 @@ Explica cómo se monitorea, administra y mantiene el sistema en producción.
 
 | Aspecto | Descripción |
 |---|---|
-| Monitoreo | ¿Qué herramientas se usan? ¿Qué métricas se observan? |
-| Logs / Auditoría | ¿Dónde se almacenan? ¿Qué se registra? |
-| Alertas | ¿Bajo qué condiciones se generan alertas? |
-| Tareas de mantenimiento | ¿Hay tareas manuales periódicas? |
-| Cambios de configuración | ¿Requieren reinicio? ¿Cómo se gestionan? |
+| Monitoreo | El estado del servicio FastAPI se verifica manualmente accediendo al endpoint `/health` desde el navegador o con `Invoke-WebRequest -Uri http://localhost:8000/health`. El administrador revisa que IIS y el servicio Windows de FastAPI estén activos desde el Administrador de servicios (`services.msc`) al inicio de cada turno. |
+| Logs / Auditoría | FastAPI escribe logs en `C:\inetpub\eCatallogApp\eCatallogCollinsBack\logs\app.log` mediante el módulo `logging` de Python. IIS genera sus propios logs de acceso en `C:\inetpub\logs\LogFiles\`. Ambos se conservan por 90 días antes de rotarse o eliminarse manualmente. |
+| Alertas | No se cuenta con un sistema de alertas automático. Si el servicio cae, los usuarios de piso lo reportan directamente a TI.|
+| Tareas de mantenimiento | Limpiar la carpeta `C:\backups\` manualmente cada mes para evitar que llene el disco. Verificar que el servicio FastAPI arrancó correctamente después de cualquier reinicio del equipo o actualización de Windows. |
+| Cambios de configuración | Las variables de entorno de FastAPI se gestionan en un archivo `.env` ubicado en `C:\inetpub\eCatallogCollinsApp\eCatallogCollinsBack`. Cualquier cambio en ese archivo requiere reiniciar el servicio (`uvicorn app.main:app --reload`) para que tome efecto. Los cambios en la configuración de IIS (bindings, URL Rewrite, app pool) no requieren reinicio del equipo pero sí un `iisreset /noforce`. |
 
 ---
 
@@ -269,37 +356,219 @@ Proporciona toda la información práctica que un desarrollador nuevo necesita p
 
 | Herramienta | Versión requerida | Notas |
 |---|---|---|
-| Ej. Node.js | >= 20.x | ... |
-| Ej. Docker | >= 24.x | ... |
-| ... | ... | ... |
+| Node.js | >= 20.x | Instalar con pnpm por cuestiones de seguridad con npm |
+| Windows | >= 10 | N/A |
+| Python | >= 3.14 | N/A |
+| SQL Server | >= SQL SERVER 2022 | N/A |
+| UV | >= 0.11.17 | Como node.js pero para python |
 
 ## Cómo clonar y configurar el proyecto
 
-```bash
-# Ejemplo:
-git clone https://github.com/tu-org/tu-repo.git
-cd tu-repo
+Empezar con la base de datos
+1. Levantar una instancia de SQL Server de manera local o mediante un contenedor de Docker utilizando el puerto por defecto (`1433`).
+2. Abrir tu herramienta de gestión de bases de datos (SQL Server Management Studio o Azure Data Studio) y conectarse al servidor.
+3. Ejecutar el siguiente bloque de comandos unificado para estructurar la base de datos, aplicar restricciones, índices, procedimientos almacenados y cargar la información semilla para pruebas:
 
-# Pasos de configuración...
+```sql
+-- ============================================================================
+-- 1. CREACIÓN E INICIALIZACIÓN DE LA BASE DE DATOS
+-- ============================================================================
+CREATE DATABASE eCatalogCollins;
+GO
+
+USE eCatalogCollins;
+GO
+
+-- ============================================================================
+-- 2. CREACIÓN DE TABLAS PRINCIPALES
+-- ============================================================================
+
+-- Tabla de Usuarios de la Aplicación
+CREATE TABLE Users (
+    ID INT IDENTITY(1,1) CONSTRAINT PK_Users PRIMARY KEY,
+    Nombre NVARCHAR(100) NOT NULL,
+    Correo NVARCHAR(150) NOT NULL CONSTRAINT UQ_Users_Correo UNIQUE,
+    Rol NVARCHAR(50) NOT NULL,
+    Fecha_Creacion DATETIME DEFAULT GETDATE()
+);
+
+-- Tabla de Catálogo de Materiales
+CREATE TABLE Materials (
+    ID INT IDENTITY(1,1) CONSTRAINT PK_Materials PRIMARY KEY,
+    Name NVARCHAR(100) NOT NULL,
+    Description NVARCHAR(MAX) NULL
+);
+
+-- Tabla de Catálogo de Longitudes
+CREATE TABLE Lengths (
+    ID INT IDENTITY(1,1) CONSTRAINT PK_Lengths PRIMARY KEY,
+    Display_Value NVARCHAR(50) NOT NULL,
+    System NVARCHAR(50) NOT NULL
+);
+
+-- Tabla Principal de Componentes (Parts)
+CREATE TABLE Parts (
+    ID INT IDENTITY(1,1) CONSTRAINT PK_Parts PRIMARY KEY,
+    Spec_IP NVARCHAR(100) NULL,
+    Name NVARCHAR(150) NOT NULL,
+    Part_Number NVARCHAR(100) NOT NULL CONSTRAINT UQ_Parts_Part_Number UNIQUE,
+    Description NVARCHAR(MAX) NULL,
+    Part_Family_Type NVARCHAR(100) NULL,
+    Category NVARCHAR(100) NULL,
+    Features NVARCHAR(MAX) NULL,
+    Size_Range NVARCHAR(100) NULL,
+    Finish NVARCHAR(100) NULL,
+    Visual NVARCHAR(MAX) NULL,
+    Datasheet_Spec NVARCHAR(MAX) NULL
+);
+GO
+
+-- ============================================================================
+-- 3. CREACIÓN DE TABLAS PUENTE (RELACIONES MUCHOS A MUCHOS)
+-- ============================================================================
+
+-- Relación Muchos a Muchos: Parts <-> Materials
+CREATE TABLE Parts_Materials (
+    Part_ID INT NOT NULL,
+    Material_ID INT NOT NULL,
+    CONSTRAINT PK_Parts_Materials PRIMARY KEY (Part_ID, Material_ID),
+    CONSTRAINT FK_Parts_Materials_Parts FOREIGN KEY (Part_ID) REFERENCES Parts(ID) ON DELETE CASCADE,
+    CONSTRAINT FK_Parts_Materials_Materials FOREIGN KEY (Material_ID) REFERENCES Materials(ID) ON DELETE CASCADE
+);
+
+-- Relación Muchos a Muchos: Parts <-> Lengths
+CREATE TABLE Parts_Lengths (
+    Part_ID INT NOT NULL,
+    Length_ID INT NOT NULL,
+    CONSTRAINT PK_Parts_Lengths PRIMARY KEY (Part_ID, Length_ID),
+    CONSTRAINT FK_Parts_Lengths_Parts FOREIGN KEY (Part_ID) REFERENCES Parts(ID) ON DELETE CASCADE,
+    CONSTRAINT FK_Parts_Lengths_Lengths FOREIGN KEY (Length_ID) REFERENCES Lengths(ID) ON DELETE CASCADE
+);
+GO
+
+-- ============================================================================
+-- 4. CREACIÓN DE ÍNDICES DE RENDIMIENTO
+-- ============================================================================
+
+-- Optimización de búsquedas y filtros por campos de texto frecuentes
+CREATE INDEX IX_Materials_Name ON Materials(Name);
+CREATE INDEX IX_Lengths_Display_Value_System ON Lengths(Display_Value, System);
+
+-- Optimización de llaves foráneas de tablas puente para agilizar JOINS
+CREATE INDEX IX_Parts_Materials_Material ON Parts_Materials(Material_ID);
+CREATE INDEX IX_Parts_Lengths_Length ON Parts_Lengths(Length_ID);
+GO
+
+-- ============================================================================
+-- 5. PROCEDIMIENTO ALMACENADO DE AUTENTICACIÓN
+-- ============================================================================
+CREATE PROCEDURE dbo.AuthUser
+    @Nombre NVARCHAR(100),
+    @Correo NVARCHAR(150)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        ID, 
+        Nombre, 
+        Correo, 
+        Rol, 
+        Fecha_Creacion
+    FROM Users
+    WHERE Nombre = @Nombre AND Correo = @Correo;
+END;
+GO
+
+-- ============================================================================
+-- 6. INSERCIÓN DE DATOS SEMILLA
+-- ============================================================================
+
+-- Registro de Usuario de Pruebas
+INSERT INTO Users (Nombre, Correo, Rol) 
+VALUES ('Dev User', 'dev@collins.com', 'Admin');
+
+-- Catálogos Base
+INSERT INTO Materials (Name, Description) 
+VALUES ('Steel', 'Carbon steel'), ('Aluminium', '6061-T6 Aluminium');
+
+INSERT INTO Lengths (Display_Value, System) 
+VALUES ('10mm', 'Metric'), ('1/2 inch', 'Imperial');
+
+-- Componente Técnico Base (ID auto-asignado: 1)
+INSERT INTO Parts (Name, Part_Number, Description, Category, Part_Family_Type) 
+VALUES ('Standard Bolt', 'PRT-001', 'Hex head standard bolt', 'Fasteners', 'Hardware');
+
+-- Mapeo de Relaciones Semilla para el componente 1
+INSERT INTO Parts_Materials (Part_ID, Material_ID) VALUES (1, 1);
+INSERT INTO Parts_Lengths (Part_ID, Length_ID) VALUES (1, 1);
+GO
+```
+
+Configuracion del backend
+```bash
+
+#Continuar con la configuracion del backend
+git clone https://github.com/JorgeQR1003/eCatalogCollinsBack.git
+cd eCatalogCollinsBack
+
+# Pasos de configuración
+1. cd eCatalogCollinsBack
+2. Crear un archivo .env que contenga DB_driver=ODBC Driver 18 for SQL Server, DB_SERVER=localhost, DB_NAME=eCatallogCollins, DB_ENCRYPT=yes
+3. Crear un ambiente virtual usando uv venv -nombredelambiente
+4. Al usar uv venv te ingresara automaticamente al ambiente virtual, ejecutar uv pip install -r requirements.txt
+5. Ejecutar uv run app/main.py
+
+```
+Configuracion del Frontend
+```Bash
+# Continuar con el frontend
+1. Clona el repositorio: git clone https://github.com/BarcosyPizzas/eCatalogCollinsFront.git
+2. Entra al proyecto frontend: cd eCatalogCollinsFront/eCatalog
+3. Instala dependencias: npm install (o npm ci si quieres instalación limpia con package-lock.json)
+4. Configura variables de entorno: Crea/edita eCatalog/.env
+5. Agrega VITE_API_URL=<URL_DE_TU_BACKEND> (el frontend la usa para las llamadas API)
+6. Corre el proyecto en desarrollo: npm run dev
+7. Abre la app en el navegador: http://localhost:3000
+
 ```
 
 ## Cómo ejecutar el proyecto localmente
-
 ```bash
-# Comando(s) para levantar el sistema en desarrollo
+1. Verificar que la instancia de base de datos este corriendo
+2. Ejecutar primero el backend entrando al ambiente virtual en uv usando .venv\Scripts\activate
+3. Empezar la ejecucion del programa de backend con el comando uv run app/main.py
+4. Ir al repositorio frontend y correr pnpm run dev para poder empezar el proyecto en local, y ya estaria completo el programa.
 ```
 
 ## Cómo ejecutar las pruebas
 
 ```bash
-# Comando(s) para ejecutar el suite de pruebas
+# No se cuenta con pruebas.
 ```
 
 ## Estructura de ramas / flujo de trabajo Git
 
-Describe brevemente el flujo (ej. Gitflow, trunk-based development, etc.).
+El proyecto usa un flujo simplificado de dos ramas fijas, adecuado para un equipo pequeño de dos personas:
 
----
+| Rama | Propósito |
+|---|---|
+| `main` | Código en producción. Solo recibe cambios cuando hay un pase a producción validado. |
+| `dev` | Rama de desarrollo activo. Frontend y backend integran sus cambios aquí directamente. |
+
+El desarrollo del frontend y del backend se realiza directamente sobre `dev` sin crear ramas por feature. Cuando el equipo considera que `dev` está estable y probado, se hace merge a `main` y se ejecuta el proceso de despliegue.
+
+```bash
+# Flujo típico para subir cambios a producción
+git checkout dev
+git pull origin dev          # asegurarse de tener lo último
+
+# validar en staging...
+
+git checkout main
+git merge dev
+git push origin main         # esto detona el pase a producción manual
+```
 
 # 13. Registro de Decisiones
 
@@ -307,9 +576,9 @@ Documenta las decisiones de arquitectura importantes: qué se decidió, por qué
 
 | # | Decisión | Contexto / Problema | Alternativas consideradas | Justificación |
 |---|---|---|---|---|
-| 1 | Ej. Usar PostgreSQL como base de datos | ... | MySQL, MongoDB | ... |
-| 2 | ... | ... | ... | ... |
-| 3 | ... | ... | ... | ... |
+| 1 | Usar SQL Server como base de datos | Elegir la base de datos adecuada | MySQL, PostgreSQL | Es la unica aprobada por la empresa. |
+| 2 | Elegir un framework de frontend | Hay muchas tecnologias diferentes de frontend | NextJS, Angular | Se eligió Tanstack Start porque es un framework completo que se puede acoplar muy facil con react. |
+| 3 | Elegir un lenguaje de programación backend | Los integrantes solo sabian python y golang al momento de inicial el proyecto | Java, .Net | Se eligió python por la velocidad de desarrollo y simpleza. |
 
 ---
 
