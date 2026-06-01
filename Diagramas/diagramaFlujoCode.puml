@@ -1,0 +1,29 @@
+@startuml
+skinparam ActivityBackgroundColor #E6F1FB
+skinparam ActivityBorderColor #185FA5
+skinparam ActivityDiamondBackgroundColor #FAEEDA
+skinparam ActivityDiamondBorderColor #BA7517
+skinparam ArrowColor #185FA5
+skinparam ActivityFontSize 13
+
+start
+
+repeat
+  :Ingresar credenciales;
+  :Validar con Auth Collins Aerospace;
+repeat while (¿Credenciales válidas?) is (No) -> Reintentar;
+
+:Acceder al catálogo;
+
+repeat
+  :Ingresar término de búsqueda;
+  :El sistema consulta la base de datos;
+repeat while (¿Se encontraron resultados?) is (No) -> Reintentar búsqueda;
+
+:Mostrar lista de piezas;
+:Seleccionar una pieza;
+:Ver ficha técnica de la pieza;
+
+stop
+
+@enduml
