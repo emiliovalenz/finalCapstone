@@ -1,15 +1,13 @@
-# finalCapstone
-
 
 # Software Guidebook — Plantilla de Documentación
 
-**Nombre del sistema:** ________________________________  
+**Nombre del sistema:**   E-Catalog 
 
-**Equipo / Integrantes:** ________________________________  
+**Equipo / Integrantes:** Luis Guillen, Gibran Garcia, Carlos Valenzuela
 
-**Fecha:** ________________________________  
+**Fecha:** 31 - Mayo - 2026 
 
-**Versión del documento:** ________________________________  
+**Versión del documento:** Final  
 
 ---
 
@@ -20,22 +18,24 @@ Esta sección establece el escenario general. Debe responder: ¿qué es el siste
 ## ¿Qué es y para qué sirve este sistema?
 Escribe aquí una descripción breve del sistema.
 
+E-Catalog es un sistema que consiste en un catálogo digital que contiene piezas manufacturadas y compradas en la empresa Collins Aerospace con la intención de proporcionar información sobre ellas de una manera sencilla e intuitiva para el usuario, en este caso, siendo los empleados dentro de Collins Aerospace.
 ## ¿Cómo encaja en el entorno existente?
 Describe los sistemas externos, procesos de negocio o plataformas con las que interactúa.
+
+E-Catalog interactúa con el Sistema de Autenticación de Collins Aerospace para delegar la tarea de Autenticar usuarios, permitiéndoles el acceso a la plataforma.
 
 ## ¿Quiénes son los usuarios?
 
 | Rol / Actor | Descripción |
 |---|---|
-| Ej. Usuario final | ... |
-| Ej. Administrador | ... |
+| Ingenieros | Ingenieros que trabajan en el área de Standard Parts en Collins Aerospace |
+| Personal de IT | Empleados que trabajan en el área de IT en Collins Aerospace|
+| Developers |Developers que trabajan en Collins Aerospace|
 
 ## Diagrama de Contexto
 Inserta aquí un diagrama C4 de Contexto (Level 1) o un esquema equivalente.
 
-```text
-[ Diagrama aquí ]
-```
+![Diagrama C1](Diagramas/diagramaC1.png)
 
 ---
 
@@ -46,27 +46,35 @@ Resume las funcionalidades clave del sistema. No es un manual de usuario; es un 
 ## ¿Qué hace el sistema?
 Describe brevemente el propósito funcional del sistema.
 
+El propósito de E-Catalog es brindar un catálogo donde los Ingenieros en Collins Aerospace puedan consultar información y datos tanto de piezas manufacturadas como de piezas compradas. Esto con la intención de tener un acceso rápido y sencillo de navegar para la suplir la necesidad de consulta de información en el día a día del trabajo.
+
 ## Funcionalidades principales
 
 | # | Funcionalidad | ¿Arquitectónicamente significativa? | ¿Por qué? |
 |---|---|---|---|
-| 1 | ... | Sí / No | ... |
-| 2 | ... | Sí / No | ... |
-| 3 | ... | Sí / No | ... |
+| 1 | Búsqueda y filtrado de piezas (por número de parte, categoría, material, dimensiones, etc.) | Sí | Es el núcleo del sistema; impacta el modelo de datos, indexación y rendimiento de queries |
+| 2 | Visualización de ficha técnica de pieza (especificaciones, planos, tolerancias, materiales) | Sí | Puede requerir renderizado de archivos PDF/PNG y almacenamiento de archivos pesados |
+| 3 | Gestión de catálogo (alta, baja y modificación de piezas) | Sí | Define flujos de escritura, roles y permisos |
+| 4 | Exportación de información de piezas (PDF, Excel) | No | Es útil pero no cambia decisiones estructurales del sistema |
 
 ## Usuarios y sus necesidades
 
 | Rol | Necesidad principal que cubre el sistema |
 |---|---|
-| ... | ... |
+| Ingenieros de Collins Aerospace | Utilizan el E-Catalog para consultar información de piezas manufacturadas y compradas. También gestiona el catálogo: alta, baja y modificación de piezas. |
+|Personal de IT de Collins Aerospace|Revisa el estado del sistema para mantenerlo estable y funcionando|
+|Developers de Collins Aerospace|Se encargan de darle continuidad al desarrollo del sistema extendiendo su funcionalidad y adaptándolo día con día|
 
 ## Diagrama de flujo / casos de uso (opcional si aplica)
 
 Un diagrama de casos de uso UML, wireframe o diagrama de flujo de actividad puede ir aquí.
 
-```text
-[ Diagrama aquí ]
-```
+<div align="center">
+
+![Diagrama de Flujo](Diagramas/diagramaFlujo.png)
+
+</div>
+
 
 ---
 
@@ -76,15 +84,19 @@ Lista los requisitos no funcionales con valores precisos y medibles. Evita térm
 
 | Atributo | Descripción | Métrica / Criterio de aceptación |
 |---|---|---|
-| Rendimiento | ... | Ej. < 200 ms de latencia en el 95% de las peticiones |
-| Escalabilidad | ... | Ej. Soportar hasta 10,000 usuarios concurrentes |
-| Disponibilidad | ... | Ej. 99.9% uptime mensual |
-| Seguridad | ... | Ej. Autenticación OAuth 2.0, cifrado TLS 1.3 |
-| Mantenibilidad | ... | ... |
-| Otro | ... | ... |
+| Rendimiento | Las búsquedas y consultas de piezas deben responder ágilmente para no interrumpir el flujo de trabajo del ingeniero | Tiempo de respuesta menor a 2 segundos en el 95% de las consultas |
+| Escalabilidad | El sistema debe soportar el uso simultáneo de múltiples ingenieros dentro de la red interna | Soportar al menos 10 usuarios concurrentes sin degradación notable del rendimiento |
+| Disponibilidad | El sistema debe estar disponible durante el horario laboral de Collins Aerospace | 99% de uptime en horario laboral (lunes a viernes, 7am–5pm) |
+| Seguridad | El acceso al sistema debe estar restringido a empleados autenticados mediante el sistema de autenticación de Collins Aerospace | 100% de endpoints protegidos; ningún acceso sin sesión válida del sistema corporativo |
+| Mantenibilidad | El código debe ser comprensible y fácil de extender por nuevos developers que se incorporen al proyecto | Un developer nuevo debe ser capaz de entender y modificar cualquier módulo del sistema en menos de 2 horas, contando con la documentación disponible |
+| Usabilidad | Los ingenieros deben poder encontrar una pieza sin necesidad de capacitación previa | Un usuario nuevo debe poder realizar una búsqueda exitosa en menos de 3 minutos sin ayuda |
 
 > **Nota:** Indica explícitamente qué atributos están fuera de alcance si aplica (ej. "Soporte multilingüe no está contemplado en esta versión").
 
+Atributos fuera de alcance:  
+- Soporte multilingüe (solo español)  
+- Acceso desde fuera de la red interna (no hay acceso remoto/VPN contemplado)  
+- Alta disponibilidad 24/7 fuera de horario laboral
 ---
 
 # 4. Restricciones
@@ -93,12 +105,11 @@ Documenta las restricciones impuestas al proyecto: tecnológicas, organizacional
 
 | Tipo | Restricción | Impacto en la arquitectura |
 |---|---|---|
-| Tecnológica | Ej. Solo se pueden usar tecnologías open source | ... |
-| Presupuesto / Tiempo | ... | ... |
-| Plataforma de despliegue | ... | ... |
-| Equipo | Ej. Equipo de 4 personas, conocimiento en Java | ... |
-| Legal / Regulatoria | ... | ... |
-| Otra | ... | ... |
+| Tecnológica | N/A | N/A |
+| Presupuesto / Tiempo | No hay presupuesto para el proyecto. El tiempo para realizar el proyecto es de 6 meses | Obliga a usar tecnologías open source y gratuitas. El alcance funcional debe limitarse a lo esencial; descarta soluciones complejas que requieran licencias o infraestructura costosa |
+| Plataforma de despliegue | El sistema debe desplegarse localmente en una máquina Windows de la empresa | Descarta opciones cloud; obliga a usar tecnologías compatibles con Windows. El sistema solo es accesible desde la red interna de la empresa |
+| Equipo | Equipo de 6 personas con conocimiento que tengan conocimiento en Front-End, Back-End, Base de Datos, Diseño y Maquetado| Se debe elegir un stack tecnológico conocido por el equipo para evitar curvas de aprendizaje que comprometan los tiempos. La arquitectura debe ser simple y bien documentada para facilitar la colaboración |
+| Legal / Regulatoria | N/A | N/A |
 
 ---
 
@@ -108,11 +119,7 @@ Enumera los principios que guían las decisiones de arquitectura y desarrollo. D
 
 | # | Principio | Descripción / Justificación |
 |---|---|---|
-| 1 | Ej. Alta cohesión, bajo acoplamiento | ... |
-| 2 | Ej. No lógica de negocio en la capa de presentación | ... |
-| 3 | Ej. DRY (Don't Repeat Yourself) | ... |
-| 4 | Ej. Usar inyección de dependencias | ... |
-| 5 | ... | ... |
+| 1 | DRY (Don't Repeat Yourself) | El código no debe duplicarse. Si una lógica se repite, se extrae en un componente o función reutilizable para facilitar el mantenimiento y reducir errores |
 
 ---
 
