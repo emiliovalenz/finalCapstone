@@ -35,7 +35,7 @@ E-Catalog interactúa con el Sistema de Autenticación de Collins Aerospace para
 ## Diagrama de Contexto
 Inserta aquí un diagrama C4 de Contexto (Level 1) o un esquema equivalente.
 
-![Diagrama C1](Diagramas/diagramaC1.png)
+![Diagrama C1](Diagramas/diagramC1.png)
 
 ---
 
