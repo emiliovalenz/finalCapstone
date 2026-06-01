@@ -105,7 +105,7 @@ Documenta las restricciones impuestas al proyecto: tecnológicas, organizacional
 
 | Tipo | Restricción | Impacto en la arquitectura |
 |---|---|---|
-| Tecnológica | N/A | N/A |
+| Tecnológica | Uso de SQL Server | Limita la elección de DBMS y obliga a usar patrones y herramientas específicas de SQL Server. Reduce portabilidad futura pero aprovecha licencias corporativas existentes. |
 | Presupuesto / Tiempo | No hay presupuesto para el proyecto. El tiempo para realizar el proyecto es de 6 meses | Obliga a usar tecnologías open source y gratuitas. El alcance funcional debe limitarse a lo esencial; descarta soluciones complejas que requieran licencias o infraestructura costosa |
 | Plataforma de despliegue | El sistema debe desplegarse localmente en una máquina Windows de la empresa | Descarta opciones cloud; obliga a usar tecnologías compatibles con Windows. El sistema solo es accesible desde la red interna de la empresa |
 | Equipo | Equipo de 6 personas con conocimiento que tengan conocimiento en Front-End, Back-End, Base de Datos, Diseño y Maquetado| Se debe elegir un stack tecnológico conocido por el equipo para evitar curvas de aprendizaje que comprometan los tiempos. La arquitectura debe ser simple y bien documentada para facilitar la colaboración |
